@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 XLA_PYTHON_CLIENT_PREALLOCATE=false python scripts/serve_policy.py --port=8000 policy:checkpoint --policy.config=pi0_robocasa_pretrain_human300 --policy.dir=/scratch/sx11/sx0401/workspace/code/robocasa/checkpoints/pi0/pi0_robocasa_pretrain_human300/multitask_learning/75000
