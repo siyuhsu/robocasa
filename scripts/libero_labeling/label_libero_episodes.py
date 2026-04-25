@@ -28,9 +28,12 @@ Usage:
 """
 
 import argparse
+import itertools
 import json
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -82,8 +85,11 @@ SHORT_PLAN_TEMPLATE = (
 MOVEMENT_LEVEL_TEMPLATE = (
     "MOVEMENT:\n"
     "Current Movement: {current_movement}\n"
+    "Next 20 Movement: {next_20_movement}\n"
     "Subtask Movement: {subtask_movement}\n"
 )
+
+NEXT_HORIZON_STEPS = 20  # 1-second look-ahead at fps=20
 
 
 # ───── helpers ──────────────────────────────────────────────────────────────
@@ -259,6 +265,14 @@ def label_one_episode(
         delta = get_position_change(actions, i, next_i)
         current_movement = describe_move(delta)
 
+        # Next-20-step movement: 1-second look-ahead at fps=20.
+        # Fixed window — capped at episode end, NOT at segment_end. Gives the
+        # policy a consistent mid-horizon target between Current (1 step) and
+        # Subtask (variable, often 50-100+ steps).
+        next20_end = min(i + NEXT_HORIZON_STEPS, n)
+        delta_next20 = get_position_change(actions, i, next20_end)
+        next_20_movement = describe_move(delta_next20)
+
         seg_id = overall_segment[i] if i < len(overall_segment) else None
         seg_end_i = min(seg_end.get(seg_id, i), n - 1)
         delta_subtask = get_position_change(actions, i, seg_end_i)
@@ -268,6 +282,7 @@ def label_one_episode(
         assistant_short_plan = SHORT_PLAN_TEMPLATE.format(subtask=ann[0], reasoning=ann[1])
         assistant_movement_level = MOVEMENT_LEVEL_TEMPLATE.format(
             current_movement=current_movement,
+            next_20_movement=next_20_movement,
             subtask_movement=subtask_movement,
         )
 
@@ -287,8 +302,11 @@ def label_one_episode(
             "task_obj_bbox": None,
             "distractor_bboxes": None,
             "delta_full_state": delta.tolist(),
+            "delta_next_20": delta_next20.tolist(),
             "delta_full_state_norm": [],
             "movement_text": current_movement,
+            "next_20_movement_text": next_20_movement,
+            "subtask_movement_text": subtask_movement,
         })
 
     frame_records, mv_stats = normalize_episode_movements(frame_records)
@@ -317,11 +335,18 @@ def main():
     p.add_argument("--vlm_backend", choices=["http", "hf_local"], default="http",
                    help="http=OpenAI-compat (vLLM, default — Qwen3.5-9B); hf_local=in-process transformers")
     p.add_argument("--api_url", default="http://shou_node09:8101/v1/chat/completions",
-                   help="vLLM OpenAI-compat endpoint (set to actual host:port if different)")
+                   help="Single vLLM endpoint (used when --api_urls is empty)")
+    p.add_argument("--api_urls", default="",
+                   help="Comma-separated list of vLLM endpoints; round-robin per VLM call. "
+                        "Overrides --api_url when set. Example: "
+                        "http://localhost:8101/v1/chat/completions,http://localhost:8102/v1/chat/completions")
     p.add_argument("--model_name", default="Qwen3.5-9B",
                    help="vLLM registered name (http) or absolute path (hf_local)")
     p.add_argument("--device", default="cuda:0", help="Used when --vlm_backend hf_local")
     p.add_argument("--max_frames_per_segment", type=int, default=5)
+    p.add_argument("--num_workers", type=int, default=1,
+                   help="Number of episodes to process in parallel (ThreadPoolExecutor). "
+                        "Each worker holds one round-robin'd VLM client. Use 1 for serial.")
     p.add_argument("--dry_run", action="store_true")
     p.add_argument("--overwrite", action="store_true")
     args = p.parse_args()
@@ -334,22 +359,81 @@ def main():
         instr_mapping = json.load(f)
     print(f"[info] Loaded {len(instr_mapping)} instruction → subtasks entries")
 
-    # VLM client. Disable Qwen3.5's built-in thinking mode (which would otherwise
+    # VLM clients. Disable Qwen3.5's built-in thinking mode (which would otherwise
     # consume max_tokens on a "Thinking Process:" preamble before the answer).
+    # Round-robin across multiple endpoints (one HTTP client per endpoint;
+    # selection is thread-safe via itertools.cycle + a lock).
     if args.dry_run:
-        model = None
+        models = [None]
         print("[info] Dry-run mode — VLM disabled")
     elif args.vlm_backend == "http":
-        model = QwenVLLM(
-            api_url=args.api_url,
-            model_name=args.model_name,
-            chat_template_kwargs={"enable_thinking": False},
-        )
+        if args.api_urls:
+            urls = [u.strip() for u in args.api_urls.split(",") if u.strip()]
+        else:
+            urls = [args.api_url]
+        models = [
+            QwenVLLM(
+                api_url=u,
+                model_name=args.model_name,
+                chat_template_kwargs={"enable_thinking": False},
+            )
+            for u in urls
+        ]
+        print(f"[info] {len(models)} vLLM endpoint(s) registered for round-robin")
     else:
-        model = HFQwenVLClient(model_path=args.model_name, device=args.device)
+        # hf_local: single in-process model — concurrent requests would need to
+        # share GPU; force num_workers=1 for safety.
+        if args.num_workers != 1:
+            print(f"[warn] hf_local backend forces num_workers=1 (was {args.num_workers})")
+            args.num_workers = 1
+        models = [HFQwenVLClient(model_path=args.model_name, device=args.device)]
+
+    rr_iter = itertools.cycle(models)
+    rr_lock = threading.Lock()
+
+    def get_model():
+        with rr_lock:
+            return next(rr_iter)
 
     suites = LIBERO_SUITES if args.suite == "all" else [args.suite]
     suite_dirs = [(s, libero_suite_dir(data_root, s)) for s in suites]
+
+    def _process_one(suite_name, sdir, ep_idx, eps, instr_mapping_local,
+                     fps_local, sidx, oidx, gidx):
+        _ep_idx, _length, instruction = eps[ep_idx]
+        mapping = instr_mapping_local.get(instruction)
+        if not mapping or not mapping.get("subtasks"):
+            return ("skip_no_mapping", instruction[:60])
+
+        out_dir = output_root / suite_name / "extras" / f"episode_{ep_idx:06d}"
+        out_path = out_dir / "cot_annotations.json"
+        if out_path.exists() and not args.overwrite:
+            return ("skip_exists", str(out_path))
+
+        try:
+            payload = label_one_episode(
+                suite_dir=sdir,
+                suite_name=suite_name,
+                ep_idx=ep_idx,
+                instruction=instruction,
+                subtask_list=mapping["subtasks"],
+                fps=fps_local,
+                spatial_indices=sidx,
+                orient_indices=oidx,
+                gripper_indices=gidx,
+                model=get_model(),  # round-robin per episode (each ep makes ~5-9 sequential VLM calls)
+                dry_run=args.dry_run,
+                max_frames_per_segment=args.max_frames_per_segment,
+            )
+        except Exception as e:
+            return ("error", f"{suite_name} ep{ep_idx}: {e}")
+        if payload is None:
+            return ("empty", f"{suite_name} ep{ep_idx}")
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        return ("ok", str(out_path))
 
     total_done = 0
     for suite_name, sdir in suite_dirs:
@@ -364,45 +448,32 @@ def main():
         end_ep = total if args.num_episodes <= 0 else min(args.start_ep + args.num_episodes, total)
         ep_indices = list(range(args.start_ep, end_ep))
 
-        print(f"\n[suite {suite_name}] {len(ep_indices)} episodes, fps={fps}")
+        print(f"\n[suite {suite_name}] {len(ep_indices)} episodes, fps={fps}, "
+              f"workers={args.num_workers}, endpoints={len(models)}")
 
-        for ep_idx in tqdm(ep_indices, desc=suite_name):
-            _ep_idx, _length, instruction = eps[ep_idx]
-            mapping = instr_mapping.get(instruction)
-            if not mapping or not mapping.get("subtasks"):
-                tqdm.write(f"[skip] no subtask mapping for: '{instruction[:60]}'")
-                continue
-
-            out_dir = output_root / suite_name / "extras" / f"episode_{ep_idx:06d}"
-            out_path = out_dir / "cot_annotations.json"
-            if out_path.exists() and not args.overwrite:
-                continue
-
-            try:
-                payload = label_one_episode(
-                    suite_dir=sdir,
-                    suite_name=suite_name,
-                    ep_idx=ep_idx,
-                    instruction=instruction,
-                    subtask_list=mapping["subtasks"],
-                    fps=fps,
-                    spatial_indices=spatial_idx,
-                    orient_indices=orient_idx,
-                    gripper_indices=gripper_idx,
-                    model=model,
-                    dry_run=args.dry_run,
-                    max_frames_per_segment=args.max_frames_per_segment,
-                )
-            except Exception as e:
-                tqdm.write(f"[error] {suite_name} ep{ep_idx}: {e}")
-                continue
-            if payload is None:
-                continue
-
-            out_dir.mkdir(parents=True, exist_ok=True)
-            with open(out_path, "w") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-            total_done += 1
+        if args.num_workers <= 1:
+            for ep_idx in tqdm(ep_indices, desc=suite_name):
+                status, msg = _process_one(suite_name, sdir, ep_idx, eps,
+                                           instr_mapping, fps, spatial_idx,
+                                           orient_idx, gripper_idx)
+                if status == "ok":
+                    total_done += 1
+                elif status == "error":
+                    tqdm.write(f"[error] {msg}")
+        else:
+            with ThreadPoolExecutor(max_workers=args.num_workers) as pool:
+                futures = {
+                    pool.submit(_process_one, suite_name, sdir, ep_idx, eps,
+                                instr_mapping, fps, spatial_idx,
+                                orient_idx, gripper_idx): ep_idx
+                    for ep_idx in ep_indices
+                }
+                for fut in tqdm(as_completed(futures), total=len(futures), desc=suite_name):
+                    status, msg = fut.result()
+                    if status == "ok":
+                        total_done += 1
+                    elif status == "error":
+                        tqdm.write(f"[error] {msg}")
 
     print(f"\n[done] Wrote {total_done} cot_annotations.json under {output_root}")
 
