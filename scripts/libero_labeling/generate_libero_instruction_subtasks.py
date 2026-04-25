@@ -135,11 +135,11 @@ def main():
                    help="Path to LEROBOT_LIBERO_DATA/")
     p.add_argument("--output", type=str,
                    default=str(Path(__file__).resolve().parent / "libero_instruction_subtask_mapping.json"))
-    p.add_argument("--vlm_backend", choices=["http", "hf_local"], default="hf_local",
-                   help="http=requests OpenAI-compat (vLLM server); hf_local=in-process transformers (no server)")
+    p.add_argument("--vlm_backend", choices=["http", "hf_local"], default="http",
+                   help="http=requests OpenAI-compat (vLLM, default — Qwen3.5-9B); hf_local=in-process transformers")
     p.add_argument("--api_url", type=str, default="http://localhost:8101/v1/chat/completions",
                    help="Used when --vlm_backend http")
-    p.add_argument("--model_name", type=str, default="Qwen/Qwen3-VL-4B-Instruct",
+    p.add_argument("--model_name", type=str, default="Qwen3.5-9B",
                    help="vLLM registered name (http) or absolute model path (hf_local)")
     p.add_argument("--device", type=str, default="cuda:0", help="Used when --vlm_backend hf_local")
     p.add_argument("--num_keyframes", type=int, default=8)

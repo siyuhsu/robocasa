@@ -89,14 +89,28 @@ MOVEMENT_LEVEL_TEMPLATE = (
 # ───── helpers ──────────────────────────────────────────────────────────────
 
 
+"""
+LIBERO action units: robosuite OSC_POSE controller maps normalized commands
+[-1, 1] to physical deltas using:
+    output_max_pos = 0.05 m/step    (action[0:3] xyz)
+    output_max_rot = 0.5 rad/step   (action[3:6] roll/pitch/yaw)
+Empirically verified (action stats over 4 suites): xyz Q99 ≈ 0.94 → ~47mm/step,
+rpy Q99 ≈ 0.18-0.35 → ~6-10°/step. Without scaling, summing 100+ frames
+produces fictitious "14000 mm" values; with scaling, subtask-level deltas
+become realistic (~50-200mm = 5-20cm tabletop range).
+"""
+LIBERO_POS_ACTION_SCALE = 0.05   # m per unit normalized action
+LIBERO_ROT_ACTION_SCALE = 0.5    # rad per unit normalized action
+
+
 def get_position_change(actions: np.ndarray, idx_from: int, idx_to: int) -> np.ndarray:
     """
-    7-D delta vector for describe_move.
+    7-D delta vector for describe_move (xyz in meters, rpy in radians, gripper 0..1).
 
-    LIBERO action layout: [dx, dy, dz, droll, dpitch, dyaw, gripper]
-      - actions[:,0:6]: per-step delta — sum across [from, to)
-      - actions[:,6]:   gripper command (1=open, 0=close in training data)
-                        describe_move expects >0.5 = "open", so pass through directly.
+    LIBERO action layout: [norm_dx, norm_dy, norm_dz, norm_droll, norm_dpitch, norm_dyaw, gripper]
+      - actions[:,0:3]: normalized xyz OSC commands → multiply by 0.05 m to get meters
+      - actions[:,3:6]: normalized rpy OSC commands → multiply by 0.5 rad to get radians
+      - actions[:,6]:   gripper command (1=open, 0=close); describe_move treats >0.5 as "open".
     """
     if actions.shape[0] == 0:
         return np.zeros(7, dtype=float)
@@ -105,8 +119,10 @@ def get_position_change(actions: np.ndarray, idx_from: int, idx_to: int) -> np.n
         delta = np.zeros(6, dtype=float)
     else:
         delta = actions[idx_from:idx_to, :6].sum(axis=0)
+    pos_m = delta[:3] * LIBERO_POS_ACTION_SCALE
+    rot_rad = delta[3:6] * LIBERO_ROT_ACTION_SCALE
     g = float(actions[min(idx_to, actions.shape[0] - 1), 6])
-    return np.concatenate([delta[:3], delta[3:6], [g]])
+    return np.concatenate([pos_m, rot_rad, [g]])
 
 
 def segment_end_indices(segments: list) -> dict:
@@ -298,11 +314,12 @@ def main():
                    help="0 = all episodes in suite")
     p.add_argument("--instruction_mapping", required=True,
                    help="Path to libero_instruction_subtask_mapping.json")
-    p.add_argument("--vlm_backend", choices=["http", "hf_local"], default="hf_local",
-                   help="http=OpenAI-compat (vLLM); hf_local=in-process transformers (no server)")
-    p.add_argument("--api_url", default="http://localhost:8101/v1/chat/completions")
-    p.add_argument("--model_name", default="Qwen/Qwen3-VL-4B-Instruct",
-                   help="vLLM registered name (http) or absolute model path (hf_local)")
+    p.add_argument("--vlm_backend", choices=["http", "hf_local"], default="http",
+                   help="http=OpenAI-compat (vLLM, default — Qwen3.5-9B); hf_local=in-process transformers")
+    p.add_argument("--api_url", default="http://shou_node09:8101/v1/chat/completions",
+                   help="vLLM OpenAI-compat endpoint (set to actual host:port if different)")
+    p.add_argument("--model_name", default="Qwen3.5-9B",
+                   help="vLLM registered name (http) or absolute path (hf_local)")
     p.add_argument("--device", default="cuda:0", help="Used when --vlm_backend hf_local")
     p.add_argument("--max_frames_per_segment", type=int, default=5)
     p.add_argument("--dry_run", action="store_true")

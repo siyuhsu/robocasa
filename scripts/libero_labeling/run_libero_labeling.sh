@@ -36,7 +36,9 @@ ENV_PYTHON=${ENV_PYTHON:-/ssd/sxu/workspace/code/starVLA/.env/starvla_upstream_e
 DATA_ROOT=${DATA_ROOT:-/ssd/sxu/workspace/code/starVLA/playground/Datasets/LEROBOT_LIBERO_DATA}
 OUTPUT_ROOT=${OUTPUT_ROOT:-/ssd/sxu/workspace/code/starVLA/playground/Datasets/LIBERO_COT}
 API_URL=${API_URL:-http://localhost:8101/v1/chat/completions}
-MODEL_NAME=${MODEL_NAME:-/ssd/sxu/workspace/code/starVLA/playground/Pretrained_models/Qwen3-VL-4B-Instruct}
+MODEL_NAME=${MODEL_NAME:-Qwen3.5-9B}        # vLLM-served model name (default: Qwen3.5-9B on node09:8101)
+# For hf_local backend, override with absolute path, e.g.:
+#   MODEL_NAME=/ssd/sxu/workspace/code/starVLA/playground/Pretrained_models/Qwen3.5-9B
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAPPING="$SCRIPT_DIR/libero_instruction_subtask_mapping.json"
 
