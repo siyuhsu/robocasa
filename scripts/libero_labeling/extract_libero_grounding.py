@@ -63,22 +63,39 @@ CAMERA_NAMES = ["agentview", "robot0_eye_in_hand"]
 def task_to_bddl(task_str: str) -> str:
     """Convert task instruction string to bddl filename stem (libero convention).
 
-    "put the bowl on the plate" -> "put_the_bowl_on_the_plate"
+    "put the bowl on the plate" -> "put_the_bowl_on_the_plate.bddl"
     """
     return task_str.lower().replace(" ", "_").replace("'", "_") + ".bddl"
 
 
-def load_init_states(suite: str, bddl_stem: str) -> np.ndarray:
-    """Load init_states for a given task. Returns ndarray (N, 79)."""
-    init_path = LIBERO_INIT_DIR / suite / (bddl_stem.replace(".bddl", ".pruned_init"))
-    if not init_path.exists():
-        # try plain .init
-        alt = LIBERO_INIT_DIR / suite / (bddl_stem.replace(".bddl", ".init"))
-        if alt.exists():
-            init_path = alt
-        else:
-            raise FileNotFoundError(f"no init_states for {suite}/{bddl_stem}: {init_path}")
-    return torch.load(str(init_path), weights_only=False)
+def find_bddl_for_instruction(suite_dir: Path, instruction: str) -> Path | None:
+    """Locate the bddl file matching an instruction. Some suites (e.g. libero_10)
+    prefix bddl filenames with "KITCHEN_SCENE3_" / "LIVING_ROOM_SCENE2_" etc., so
+    we test both exact match and suffix match.
+    """
+    target_stem = instruction.lower().replace(" ", "_").replace("'", "_")
+    target_file = suite_dir / f"{target_stem}.bddl"
+    if target_file.exists():
+        return target_file
+    # Fall back to suffix match (handles SCENE-prefixed bddl)
+    for c in sorted(suite_dir.glob("*.bddl")):
+        if c.stem.lower().endswith(target_stem):
+            return c
+    return None
+
+
+def load_init_states(suite: str, bddl_filename: str) -> np.ndarray:
+    """Load init_states for a given task. Returns ndarray (N, 79).
+
+    bddl_filename is the basename (e.g. "KITCHEN_SCENE8_put_both_moka_pots_on_the_stove.bddl")
+    — init_files mirror this naming with .pruned_init / .init extensions.
+    """
+    stem = bddl_filename.replace(".bddl", "")
+    for ext in (".pruned_init", ".init"):
+        p = LIBERO_INIT_DIR / suite / (stem + ext)
+        if p.exists():
+            return torch.load(str(p), weights_only=False)
+    raise FileNotFoundError(f"no init_states for {suite}/{stem} (.pruned_init or .init)")
 
 
 def find_matching_init(init_states: np.ndarray, target_eef_pos: np.ndarray,
@@ -301,19 +318,10 @@ def main():
             ep_idx_by_task.setdefault(inst, []).append(ep_idx)
 
         for instruction, task_eps in ep_idx_by_task.items():
-            bddl_stem = task_to_bddl(instruction)
-            bddl_path = LIBERO_BDDL_DIR / suite / bddl_stem
-            if not bddl_path.exists():
-                # try alternative naming (some have hyphenated nicknames)
-                cands = list((LIBERO_BDDL_DIR / suite).glob("*.bddl"))
-                # fallback: longest common substring
-                bddl_path = None
-                for c in cands:
-                    if c.stem.replace("_", " ") == instruction.replace(",", "").strip():
-                        bddl_path = c; break
-                if bddl_path is None:
-                    print(f"[warn] no bddl for: '{instruction}' (suite={suite})")
-                    continue
+            bddl_path = find_bddl_for_instruction(LIBERO_BDDL_DIR / suite, instruction)
+            if bddl_path is None:
+                print(f"[warn] no bddl for: '{instruction}' (suite={suite})")
+                continue
 
             # Build env once per task
             if str(bddl_path) not in env_cache:
@@ -326,7 +334,7 @@ def main():
                         camera_segmentations="instance",
                     )
                     env_cache[str(bddl_path)] = env
-                    init_cache[str(bddl_path)] = load_init_states(suite, bddl_stem)
+                    init_cache[str(bddl_path)] = load_init_states(suite, bddl_path.name)
                 except Exception as e:
                     print(f"[error] env build failed: {e}")
                     continue
