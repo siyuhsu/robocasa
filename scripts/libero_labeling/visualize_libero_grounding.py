@@ -58,6 +58,17 @@ def flip180_bbox(bbox, W, H):
     return [W - 1 - int(x2), H - 1 - int(y2), W - 1 - int(x1), H - 1 - int(y1)]
 
 
+def flip_x_pt(pt, W, H):
+    """X-axis-only flip — for gripper coords from extract_libero_grounding's
+    project_to_pixel(), which already inverts v internally so its y is in MP4
+    (display) frame while x is in sim-native frame. Only x needs flipping to
+    arrive at the displayed MP4 frame.
+    """
+    if pt is None or len(pt) < 2:
+        return None
+    return [W - 1 - int(pt[0]), int(pt[1])]
+
+
 def draw_gripper(frame, pt, color=COLOR_GRIPPER, radius=4):
     if pt is None or len(pt) < 2:
         return
@@ -163,9 +174,9 @@ def render_episode(grounding: dict, lerobot_suite_dir: Path, ep_idx: int,
             color = COLOR_TASK_OBJ if name == obj_cat else COLOR_DISTRACTOR
             draw_bbox(frame, flip180_bbox(bbox, W, H), name, color)
 
-        # Gripper 2D (sim-coord → MP4-coord)
+        # Gripper 2D — only x-flip (project_to_pixel pre-inverts y)
         gp = gripper_2d[t] if t < len(gripper_2d) else None
-        draw_gripper(frame, flip180_pt(gp, W, H))
+        draw_gripper(frame, flip_x_pt(gp, W, H))
 
         # HUD bars
         draw_frame_info(frame, t, n, instruction)
