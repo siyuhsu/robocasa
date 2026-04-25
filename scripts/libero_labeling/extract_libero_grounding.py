@@ -116,7 +116,9 @@ def project_to_pixel(eef_pos: np.ndarray, sim, camera_name: str,
 
 
 def bbox_from_seg(seg: np.ndarray, inst_id: int) -> list | None:
-    """Extract [x1,y1,x2,y2] bbox for a given instance id, or None if absent."""
+    """Extract [x1,y1,x2,y2] bbox for a given instance id, or None if absent.
+    Returned coords are in the segmentation/sim-native image frame.
+    """
     if seg.ndim == 3:
         seg = seg[..., 0]
     mask = (seg == inst_id)
@@ -126,6 +128,33 @@ def bbox_from_seg(seg: np.ndarray, inst_id: int) -> list | None:
     return [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())]
 
 
+def to_mp4_frame_bbox(bbox: list | None, W: int, H: int) -> list | None:
+    """Sim-native bbox → raw-MP4 / displayed frame via 180° rotation.
+
+    LIBERO MP4 stored on disk is 180°-rotated relative to the simulator's
+    rendered/seg image (eval_libero.py:139 applies [::-1,::-1] to obs before
+    model inference, so the on-disk MP4 == sim-native flipped). Saving coords
+    in the MP4 frame means downstream consumers (training data loader,
+    visualisation) can use them directly with the raw video.
+    """
+    if bbox is None or len(bbox) != 4:
+        return None
+    x1, y1, x2, y2 = bbox
+    return [W - 1 - int(x2), H - 1 - int(y2), W - 1 - int(x1), H - 1 - int(y1)]
+
+
+def to_mp4_frame_pt(pt: tuple | None, W: int, H: int) -> list | None:
+    """Sim-projection gripper point → raw-MP4 frame.
+
+    project_to_pixel below internally flips the v-axis (negative leading sign
+    in the formula), so its output v already lives in the MP4-displayed frame
+    while u is in sim-native. Only x needs flipping.
+    """
+    if pt is None or len(pt) < 2:
+        return None
+    return [W - 1 - int(pt[0]), int(pt[1])]
+
+
 # ───── per-episode rollout ─────────────────────────────────────────────────
 
 
@@ -133,8 +162,15 @@ def extract_episode_grounding(env: SegmentationRenderEnv,
                               init_state: np.ndarray,
                               actions: np.ndarray,
                               camera_names: list[str] = CAMERA_NAMES,
+                              cam_height: int = 256,
+                              cam_width: int = 256,
                               ) -> dict:
-    """Run env rollout with the recorded actions; capture seg + gripper_2d per frame."""
+    """Run env rollout with the recorded actions; capture seg + gripper_2d per frame.
+
+    Saved bbox / gripper_2d coordinates are in the **raw-MP4 (displayed) frame**
+    so that they can be drawn directly on top of the LeRobot MP4 and align with
+    what the training data loader / model see. See to_mp4_frame_* helpers.
+    """
     obs = env.reset()
     obs = env.set_init_state(init_state)
     sim = env.env.sim
@@ -150,6 +186,7 @@ def extract_episode_grounding(env: SegmentationRenderEnv,
         if o not in obj_of_interest and o not in ("MountedPanda0",)
     ]
 
+    W, H = cam_width, cam_height
     for t in range(n):
         # Step env with recorded action (no-op-removed actions still apply forward)
         try:
@@ -175,23 +212,22 @@ def extract_episode_grounding(env: SegmentationRenderEnv,
                 cam_data[cam]["all_object_bboxes"].append([None] * len(all_objs))
                 continue
 
-            # gripper 2D
+            # gripper 2D — project, then map to MP4 frame (x-only flip)
             if eef_pos is not None:
-                pt = project_to_pixel(eef_pos, sim, cam)
-                cam_data[cam]["gripper_2d"].append(
-                    [int(round(pt[0])), int(round(pt[1]))] if pt else None
-                )
+                pt = project_to_pixel(eef_pos, sim, cam, H=H, W=W)
+                cam_data[cam]["gripper_2d"].append(to_mp4_frame_pt(pt, W, H))
             else:
                 cam_data[cam]["gripper_2d"].append(None)
 
-            # bbox per object — task objects first, then distractors
+            # bbox per object — extract in sim frame, then map to MP4 frame (180°)
             frame_boxes = []
             for obj_name in all_objs:
                 inst_id = env.instance_to_id.get(obj_name)
                 if inst_id is None:
                     frame_boxes.append(None)
                     continue
-                frame_boxes.append(bbox_from_seg(seg, inst_id))
+                bbox_sim = bbox_from_seg(seg, inst_id)
+                frame_boxes.append(to_mp4_frame_bbox(bbox_sim, W, H))
             cam_data[cam]["all_object_bboxes"].append(frame_boxes)
 
     return {
@@ -199,6 +235,7 @@ def extract_episode_grounding(env: SegmentationRenderEnv,
         "obj_cat": all_objs[0] if all_objs else None,
         "distr_cats": all_objs[1:] if len(all_objs) > 1 else [],
         "num_frames": n,
+        "coord_frame": "raw_mp4",  # bbox/gripper coords aligned with on-disk MP4
         "cameras": cam_data,
     }
 
@@ -316,7 +353,11 @@ def main():
                 init_state = init_states[init_idx]
 
                 try:
-                    payload = extract_episode_grounding(env, init_state, actions)
+                    payload = extract_episode_grounding(
+                        env, init_state, actions,
+                        cam_height=args.camera_height,
+                        cam_width=args.camera_width,
+                    )
                 except Exception as e:
                     tqdm.write(f"[error] {suite} ep{ep_idx}: {e}")
                     continue

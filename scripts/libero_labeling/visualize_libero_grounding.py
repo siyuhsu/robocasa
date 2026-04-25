@@ -160,25 +160,32 @@ def render_episode(grounding: dict, lerobot_suite_dir: Path, ep_idx: int,
     out_w = w if w % 2 == 0 else w - 1
     out_h = h if h % 2 == 0 else h - 1
 
+    # If grounding was extracted with old extractor (sim-native coords), apply
+    # the flip transforms here. New extractor outputs coord_frame=raw_mp4 directly.
+    coord_frame = grounding.get("coord_frame", "sim_native")
     composed = []
     for t in range(n):
         frame = bgr_frames[t].copy()
         H, W = frame.shape[:2]
 
-        # Per-frame bboxes for all known objects (transform sim-coords → MP4-coords)
         frame_boxes = all_object_bboxes[t] if t < len(all_object_bboxes) else []
         for i, bbox in enumerate(frame_boxes):
             if bbox is None:
                 continue
             name = all_object_names[i] if i < len(all_object_names) else f"obj_{i}"
             color = COLOR_TASK_OBJ if name == obj_cat else COLOR_DISTRACTOR
-            draw_bbox(frame, flip180_bbox(bbox, W, H), name, color)
+            if coord_frame == "raw_mp4":
+                draw_bbox(frame, bbox, name, color)
+            else:
+                draw_bbox(frame, flip180_bbox(bbox, W, H), name, color)
 
-        # Gripper 2D — only x-flip (project_to_pixel pre-inverts y)
         gp = gripper_2d[t] if t < len(gripper_2d) else None
-        draw_gripper(frame, flip_x_pt(gp, W, H))
+        if coord_frame == "raw_mp4":
+            draw_gripper(frame, gp)
+        else:
+            # Legacy sim-native: project_to_pixel pre-inverts y → only x-flip
+            draw_gripper(frame, flip_x_pt(gp, W, H))
 
-        # HUD bars
         draw_frame_info(frame, t, n, instruction)
 
         if frame.shape[0] != out_h or frame.shape[1] != out_w:
