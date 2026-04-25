@@ -50,15 +50,15 @@ def draw_gripper(frame, pt, color=COLOR_GRIPPER, radius=4):
     cv2.circle(frame, (int(pt[0]), int(pt[1])), radius + 1, (255, 255, 255), 1)
 
 
-def draw_bbox(frame, bbox, label, color, thickness=1):
+def draw_bbox(frame, bbox, label, color, thickness=2):
     if bbox is None or len(bbox) != 4:
         return
     x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
     cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
-    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.32, 1)
-    cv2.rectangle(frame, (x1, max(0, y1 - th - 3)), (x1 + tw + 2, y1), color, -1)
-    cv2.putText(frame, label, (x1 + 1, max(8, y1 - 2)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.32, (255, 255, 255), 1, cv2.LINE_AA)
+    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.36, 1)
+    cv2.rectangle(frame, (x1, max(0, y1 - th - 4)), (min(x1 + tw + 2, frame.shape[1] - 1), y1), color, -1)
+    cv2.putText(frame, label, (x1 + 1, max(10, y1 - 2)),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.36, (255, 255, 255), 1, cv2.LINE_AA)
 
 
 def draw_frame_info(frame, frame_idx, total_frames, instruction):
@@ -122,7 +122,11 @@ def render_episode(grounding: dict, lerobot_suite_dir: Path, ep_idx: int,
     rgb_frames = read_video_frames(vp)
     if not rgb_frames:
         return False
-    bgr_frames = [cv2.cvtColor(f, cv2.COLOR_RGB2BGR) for f in rgb_frames]
+    # LIBERO MP4 is stored in raw MuJoCo orientation, but eval_libero.py applies
+    # [::-1, ::-1] (180° flip) before sending to the model — meaning the
+    # simulator-native segmentation/bbox coords correspond to the flipped frame.
+    # We flip the video to match so the bbox overlays land correctly.
+    bgr_frames = [cv2.cvtColor(f[::-1, ::-1], cv2.COLOR_RGB2BGR) for f in rgb_frames]
 
     n = min(len(bgr_frames), len(gripper_2d), len(all_object_bboxes))
     h, w = bgr_frames[0].shape[:2]
