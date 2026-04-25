@@ -169,9 +169,14 @@ def main():
             print(f"  [{mark}] [{suite} ep{ep:03d}] {inst}")
         return
 
-    # 2. VLM session
+    # 2. VLM session — disable Qwen3.5 thinking mode so the model emits the JSON
+    # list directly instead of consuming tokens on a "Thinking Process:" preamble.
     if args.vlm_backend == "http":
-        model = QwenVLLM(api_url=args.api_url, model_name=args.model_name)
+        model = QwenVLLM(
+            api_url=args.api_url,
+            model_name=args.model_name,
+            chat_template_kwargs={"enable_thinking": False},
+        )
     else:
         model = HFQwenVLClient(model_path=args.model_name, device=args.device)
 

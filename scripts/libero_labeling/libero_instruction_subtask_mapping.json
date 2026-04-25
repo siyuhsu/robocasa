@@ -1,0 +1,460 @@
+{
+  "put the bowl on the plate": {
+    "subtasks": [
+      "approach the bowl",
+      "grasp the bowl",
+      "lift the bowl",
+      "move to the plate",
+      "place the bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_goal/episode_000000"
+  },
+  "put the wine bottle on the rack": {
+    "subtasks": [
+      "approach the wine bottle",
+      "grasp the wine bottle",
+      "lift the wine bottle",
+      "move to the rack",
+      "place the wine bottle on the rack"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_goal/episode_000001"
+  },
+  "open the top drawer and put the bowl inside": {
+    "subtasks": [
+      "approach the drawer",
+      "open the top drawer",
+      "reach for the bowl",
+      "grasp the bowl",
+      "lift the bowl",
+      "place the bowl in the drawer"
+    ],
+    "subtask_count": 6,
+    "sample_episode": "libero_goal/episode_000003"
+  },
+  "put the cream cheese in the bowl": {
+    "subtasks": [
+      "approach the blue block",
+      "grasp the blue block",
+      "move to the bowl",
+      "place the blue block in the bowl"
+    ],
+    "subtask_count": 4,
+    "sample_episode": "libero_goal/episode_000005"
+  },
+  "put the wine bottle on top of the cabinet": {
+    "subtasks": [
+      "approach the wine bottle",
+      "grasp the wine bottle",
+      "lift the wine bottle",
+      "move to the cabinet",
+      "place the wine bottle on the cabinet"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_goal/episode_000006"
+  },
+  "push the plate to the front of the stove": {
+    "subtasks": [
+      "approach the plate",
+      "grasp the plate",
+      "push the plate forward"
+    ],
+    "subtask_count": 3,
+    "sample_episode": "libero_goal/episode_000007"
+  },
+  "turn on the stove": {
+    "subtasks": [
+      "approach the stove",
+      "grasp the knob",
+      "turn on the stove"
+    ],
+    "subtask_count": 3,
+    "sample_episode": "libero_goal/episode_000009"
+  },
+  "put the bowl on the stove": {
+    "subtasks": [
+      "approach the bowl",
+      "grasp the bowl",
+      "lift the bowl",
+      "move to the stove",
+      "place the bowl on the stove"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_goal/episode_000013"
+  },
+  "put the bowl on top of the cabinet": {
+    "subtasks": [
+      "approach the bowl",
+      "grasp the bowl",
+      "lift the bowl",
+      "move to the cabinet",
+      "place the bowl on the cabinet"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_goal/episode_000019"
+  },
+  "open the middle drawer of the cabinet": {
+    "subtasks": [
+      "approach the cabinet",
+      "reach for the drawer handle",
+      "grasp the drawer handle",
+      "pull the middle drawer open"
+    ],
+    "subtask_count": 4,
+    "sample_episode": "libero_goal/episode_000020"
+  },
+  "pick up the orange juice and place it in the basket": {
+    "subtasks": [
+      "move towards the orange juice",
+      "grasp the orange juice",
+      "lift the orange juice",
+      "move to the basket",
+      "place the orange juice in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000000"
+  },
+  "pick up the ketchup and place it in the basket": {
+    "subtasks": [
+      "approach the ketchup bottle",
+      "grasp the ketchup bottle",
+      "lift the ketchup bottle",
+      "move to the basket",
+      "place the ketchup bottle in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000001"
+  },
+  "pick up the cream cheese and place it in the basket": {
+    "subtasks": [
+      "approach the cream cheese",
+      "grasp the cream cheese",
+      "lift the cream cheese",
+      "move to the basket",
+      "place the cream cheese in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000003"
+  },
+  "pick up the bbq sauce and place it in the basket": {
+    "subtasks": [
+      "approach the bbq sauce",
+      "grasp the bbq sauce",
+      "lift the bbq sauce",
+      "move to the basket",
+      "place the bbq sauce in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000004"
+  },
+  "pick up the alphabet soup and place it in the basket": {
+    "subtasks": [
+      "approach the soup can",
+      "grasp the soup can",
+      "lift the soup can",
+      "move to the basket",
+      "place the soup can in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000006"
+  },
+  "pick up the milk and place it in the basket": {
+    "subtasks": [
+      "approach the milk carton",
+      "grasp the milk carton",
+      "lift the milk carton",
+      "move to the basket",
+      "place the milk carton in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000007"
+  },
+  "pick up the salad dressing and place it in the basket": {
+    "subtasks": [
+      "approach the salad dressing",
+      "grasp the salad dressing",
+      "lift the salad dressing",
+      "move to the basket",
+      "place the salad dressing in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000009"
+  },
+  "pick up the butter and place it in the basket": {
+    "subtasks": [
+      "approach the butter",
+      "grasp the butter",
+      "lift the butter",
+      "move to the basket",
+      "place the butter in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000012"
+  },
+  "pick up the tomato sauce and place it in the basket": {
+    "subtasks": [
+      "move to the tomato sauce",
+      "grasp the tomato sauce",
+      "lift the tomato sauce",
+      "move to the basket",
+      "place the tomato sauce in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000014"
+  },
+  "pick up the chocolate pudding and place it in the basket": {
+    "subtasks": [
+      "approach the chocolate pudding",
+      "grasp the chocolate pudding",
+      "lift the chocolate pudding",
+      "move to the basket",
+      "place the chocolate pudding in the basket"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_object/episode_000016"
+  },
+  "pick up the black bowl next to the cookie box and place it on the plate": {
+    "subtasks": [
+      "approach the bowl",
+      "grasp the bowl",
+      "lift the bowl",
+      "move to the plate",
+      "place the bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000000"
+  },
+  "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate": {
+    "subtasks": [
+      "approach the black bowl",
+      "grasp the black bowl",
+      "lift the black bowl",
+      "move to the plate",
+      "place the black bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000001"
+  },
+  "pick up the black bowl on the ramekin and place it on the plate": {
+    "subtasks": [
+      "approach the black bowl",
+      "grasp the black bowl",
+      "lift the black bowl",
+      "move to the plate",
+      "place the black bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000003"
+  },
+  "pick up the black bowl on the stove and place it on the plate": {
+    "subtasks": [
+      "approach the black bowl",
+      "grasp the black bowl",
+      "lift the black bowl",
+      "move to the plate",
+      "place the bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000006"
+  },
+  "pick up the black bowl between the plate and the ramekin and place it on the plate": {
+    "subtasks": [
+      "approach the black bowl",
+      "grasp the black bowl",
+      "lift the black bowl",
+      "move to the plate",
+      "place the black bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000011"
+  },
+  "pick up the black bowl on the cookie box and place it on the plate": {
+    "subtasks": [
+      "move to the cookie box",
+      "grasp the bowl on the box",
+      "lift the bowl from the box",
+      "move towards the plate",
+      "place the bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000017"
+  },
+  "pick up the black bowl next to the plate and place it on the plate": {
+    "subtasks": [
+      "approach the black bowl",
+      "grasp the black bowl",
+      "lift the black bowl",
+      "move to the plate",
+      "place the bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000019"
+  },
+  "pick up the black bowl next to the ramekin and place it on the plate": {
+    "subtasks": [
+      "move to the black bowl",
+      "grasp the black bowl",
+      "lift the black bowl",
+      "move to the plate",
+      "place the black bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000020"
+  },
+  "pick up the black bowl from table center and place it on the plate": {
+    "subtasks": [
+      "approach the black bowl",
+      "grasp the black bowl",
+      "lift the black bowl",
+      "move to the plate",
+      "place the bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000022"
+  },
+  "pick up the black bowl on the wooden cabinet and place it on the plate": {
+    "subtasks": [
+      "approach the bowl on the cabinet",
+      "grasp the bowl on the cabinet",
+      "lift the bowl from the cabinet",
+      "move to the plate",
+      "place the bowl on the plate"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_spatial/episode_000029"
+  },
+  "put the white mug on the left plate and put the yellow and white mug on the right plate": {
+    "subtasks": [
+      "approach the yellow mug",
+      "grasp the yellow mug",
+      "lift the yellow mug",
+      "move to the left plate",
+      "place the yellow mug on the plate",
+      "move to the white mug",
+      "grasp the white mug",
+      "lift the white mug",
+      "move to the right plate",
+      "place the white mug on the plate"
+    ],
+    "subtask_count": 10,
+    "sample_episode": "libero_10/episode_000000"
+  },
+  "put the white mug on the plate and put the chocolate pudding to the right of the plate": {
+    "subtasks": [
+      "approach the white mug",
+      "grasp the white mug",
+      "lift the white mug",
+      "move to the plate",
+      "place the white mug on the plate",
+      "move to the chocolate pudding",
+      "slide the chocolate pudding"
+    ],
+    "subtask_count": 7,
+    "sample_episode": "libero_10/episode_000001"
+  },
+  "put the yellow and white mug in the microwave and close it": {
+    "subtasks": [
+      "open the microwave door",
+      "approach the yellow mug",
+      "grasp the yellow mug",
+      "lift the yellow mug",
+      "place the mug in the microwave",
+      "close the microwave door"
+    ],
+    "subtask_count": 6,
+    "sample_episode": "libero_10/episode_000002"
+  },
+  "turn on the stove and put the moka pot on it": {
+    "subtasks": [
+      "turn on the stove",
+      "approach the moka pot",
+      "grasp the moka pot",
+      "lift the moka pot",
+      "move to the stove",
+      "place the moka pot on the stove"
+    ],
+    "subtask_count": 6,
+    "sample_episode": "libero_10/episode_000006"
+  },
+  "put both the alphabet soup and the cream cheese box in the basket": {
+    "subtasks": [
+      "approach the alphabet soup",
+      "grasp the alphabet soup",
+      "lift the alphabet soup",
+      "move to the basket",
+      "place the alphabet soup in the basket",
+      "reach for the cream cheese box",
+      "grasp the cream cheese box",
+      "lift the cream cheese box",
+      "move to the basket",
+      "place the cream cheese box in the basket"
+    ],
+    "subtask_count": 10,
+    "sample_episode": "libero_10/episode_000007"
+  },
+  "put both the alphabet soup and the tomato sauce in the basket": {
+    "subtasks": [
+      "approach the alphabet soup can",
+      "grasp the alphabet soup can",
+      "move to the basket",
+      "place the alphabet soup in the basket",
+      "approach the tomato sauce bottle",
+      "grasp the tomato sauce bottle",
+      "move to the basket",
+      "place the tomato sauce in the basket"
+    ],
+    "subtask_count": 8,
+    "sample_episode": "libero_10/episode_000008"
+  },
+  "put both moka pots on the stove": {
+    "subtasks": [
+      "move to the first moka pot",
+      "grasp the first moka pot",
+      "lift the first moka pot",
+      "place the moka pot on the stove",
+      "move to the second moka pot",
+      "grasp the second moka pot",
+      "lift the second moka pot",
+      "place the second moka pot on the stove"
+    ],
+    "subtask_count": 8,
+    "sample_episode": "libero_10/episode_000010"
+  },
+  "put both the cream cheese box and the butter in the basket": {
+    "subtasks": [
+      "approach the cream cheese box",
+      "grasp the cream cheese box",
+      "move to the basket",
+      "place the cream cheese box in the basket",
+      "approach the butter",
+      "grasp the butter",
+      "move to the basket",
+      "place the butter in the basket"
+    ],
+    "subtask_count": 8,
+    "sample_episode": "libero_10/episode_000012"
+  },
+  "put the black bowl in the bottom drawer of the cabinet and close it": {
+    "subtasks": [
+      "move to the bowl",
+      "grasp the bowl",
+      "lift the bowl",
+      "place the bowl in drawer",
+      "close the drawer"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_10/episode_000014"
+  },
+  "pick up the book and place it in the back compartment of the caddy": {
+    "subtasks": [
+      "approach the book",
+      "grasp the book",
+      "lift the book",
+      "move to the caddy",
+      "place the book in the caddy"
+    ],
+    "subtask_count": 5,
+    "sample_episode": "libero_10/episode_000027"
+  }
+}

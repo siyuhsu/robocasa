@@ -334,12 +334,17 @@ def main():
         instr_mapping = json.load(f)
     print(f"[info] Loaded {len(instr_mapping)} instruction → subtasks entries")
 
-    # VLM client
+    # VLM client. Disable Qwen3.5's built-in thinking mode (which would otherwise
+    # consume max_tokens on a "Thinking Process:" preamble before the answer).
     if args.dry_run:
         model = None
         print("[info] Dry-run mode — VLM disabled")
     elif args.vlm_backend == "http":
-        model = QwenVLLM(api_url=args.api_url, model_name=args.model_name)
+        model = QwenVLLM(
+            api_url=args.api_url,
+            model_name=args.model_name,
+            chat_template_kwargs={"enable_thinking": False},
+        )
     else:
         model = HFQwenVLClient(model_path=args.model_name, device=args.device)
 

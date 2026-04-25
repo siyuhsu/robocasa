@@ -30,9 +30,16 @@ class QwenVLLM:
     def __init__(self,
                  api_url="http://localhost:8100/v1/chat/completions",
                  model_name="/data/app/huggingface/hub/models--Qwen--Qwen3-VL-4B-Instruct"
-                            "/snapshots/ebb281ec70b05090aa6165b016eac8ec08e71b17"):
+                            "/snapshots/ebb281ec70b05090aa6165b016eac8ec08e71b17",
+                 chat_template_kwargs: dict | None = None):
+        """
+        chat_template_kwargs: extra arguments passed to the chat template at
+            request time. For Qwen3.5 (which has built-in 'thinking' that consumes
+            tokens before the actual answer) pass {"enable_thinking": False}.
+        """
         self.api_url = api_url
         self.model_name = model_name
+        self.chat_template_kwargs = chat_template_kwargs or {}
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
 
@@ -83,6 +90,8 @@ class QwenVLLM:
             "repetition_penalty": 1.0,
             "presence_penalty": 1.5,
         }
+        if self.chat_template_kwargs:
+            payload["chat_template_kwargs"] = self.chat_template_kwargs
         resp = self.session.post(self.api_url, json=payload, timeout=timeout)
         resp.raise_for_status()
 
