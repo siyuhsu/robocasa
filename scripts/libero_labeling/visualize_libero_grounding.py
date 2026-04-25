@@ -43,6 +43,21 @@ COLOR_TASK_OBJ = (0, 0, 255)        # red
 COLOR_DISTRACTOR = (255, 165, 0)    # orange
 
 
+def flip180_pt(pt, W, H):
+    """Rotate a 2D point 180° around image centre — sim-native → MP4-native."""
+    if pt is None or len(pt) < 2:
+        return None
+    return [W - 1 - int(pt[0]), H - 1 - int(pt[1])]
+
+
+def flip180_bbox(bbox, W, H):
+    """Rotate a bbox 180° around image centre. Corners swap so x1<x2 / y1<y2 hold."""
+    if bbox is None or len(bbox) != 4:
+        return None
+    x1, y1, x2, y2 = bbox
+    return [W - 1 - int(x2), H - 1 - int(y2), W - 1 - int(x1), H - 1 - int(y1)]
+
+
 def draw_gripper(frame, pt, color=COLOR_GRIPPER, radius=4):
     if pt is None or len(pt) < 2:
         return
@@ -122,11 +137,12 @@ def render_episode(grounding: dict, lerobot_suite_dir: Path, ep_idx: int,
     rgb_frames = read_video_frames(vp)
     if not rgb_frames:
         return False
-    # LIBERO MP4 is stored in raw MuJoCo orientation, but eval_libero.py applies
-    # [::-1, ::-1] (180° flip) before sending to the model — meaning the
-    # simulator-native segmentation/bbox coords correspond to the flipped frame.
-    # We flip the video to match so the bbox overlays land correctly.
-    bgr_frames = [cv2.cvtColor(f[::-1, ::-1], cv2.COLOR_RGB2BGR) for f in rgb_frames]
+    # LIBERO MP4 is stored in raw MuJoCo orientation. eval_libero.py:139 applies
+    # [::-1, ::-1] (180°) before model inference — so the sim-native bbox/gripper
+    # coords are in the *post-flip* frame. We keep the MP4 in its natural (visually
+    # right-side-up) orientation and instead transform the coords by 180° to
+    # match the displayed image.
+    bgr_frames = [cv2.cvtColor(f, cv2.COLOR_RGB2BGR) for f in rgb_frames]
 
     n = min(len(bgr_frames), len(gripper_2d), len(all_object_bboxes))
     h, w = bgr_frames[0].shape[:2]
@@ -136,18 +152,20 @@ def render_episode(grounding: dict, lerobot_suite_dir: Path, ep_idx: int,
     composed = []
     for t in range(n):
         frame = bgr_frames[t].copy()
+        H, W = frame.shape[:2]
 
-        # Per-frame bboxes for all known objects
+        # Per-frame bboxes for all known objects (transform sim-coords → MP4-coords)
         frame_boxes = all_object_bboxes[t] if t < len(all_object_bboxes) else []
         for i, bbox in enumerate(frame_boxes):
             if bbox is None:
                 continue
             name = all_object_names[i] if i < len(all_object_names) else f"obj_{i}"
             color = COLOR_TASK_OBJ if name == obj_cat else COLOR_DISTRACTOR
-            draw_bbox(frame, bbox, name, color)
+            draw_bbox(frame, flip180_bbox(bbox, W, H), name, color)
 
-        # Gripper 2D
-        draw_gripper(frame, gripper_2d[t] if t < len(gripper_2d) else None)
+        # Gripper 2D (sim-coord → MP4-coord)
+        gp = gripper_2d[t] if t < len(gripper_2d) else None
+        draw_gripper(frame, flip180_pt(gp, W, H))
 
         # HUD bars
         draw_frame_info(frame, t, n, instruction)
