@@ -76,6 +76,7 @@ def load_font(size: int = 13):
 
 
 def draw_traj(frame_bgr: np.ndarray, grippers: list, idx: int, trail_len: int = 24):
+    """Draw past trail in red — last `trail_len` frames up to current idx."""
     start = max(0, idx - trail_len)
     pts = []
     for j in range(start, idx + 1):
@@ -85,6 +86,29 @@ def draw_traj(frame_bgr: np.ndarray, grippers: list, idx: int, trail_len: int = 
         pts.append((int(pt[0]), int(pt[1])))
     for i in range(1, len(pts)):
         cv2.line(frame_bgr, pts[i - 1], pts[i], (0, 0, 255), 1, cv2.LINE_AA)
+
+
+def draw_future_traj(frame_bgr: np.ndarray, grippers: list, idx: int,
+                     horizon: int = 20):
+    """Draw future 20-step path in cyan starting from current idx.
+
+    Cyan (BGR (255, 255, 0)) chosen for contrast with the red past-trail.
+    """
+    end = min(idx + horizon, len(grippers) - 1)
+    pts = []
+    for j in range(idx, end + 1):
+        pt = grippers[j] if j < len(grippers) else None
+        if pt is None or len(pt) < 2:
+            continue
+        pts.append((int(pt[0]), int(pt[1])))
+    cyan = (255, 255, 0)
+    for i in range(1, len(pts)):
+        cv2.line(frame_bgr, pts[i - 1], pts[i], cyan, 1, cv2.LINE_AA)
+    # Mark the path endpoint with a small hollow cyan circle so the user can
+    # see where the gripper will be in 1 second.
+    if len(pts) >= 2:
+        ex, ey = pts[-1]
+        cv2.circle(frame_bgr, (ex, ey), 3, cyan, 1, cv2.LINE_AA)
 
 
 def draw_overlay(frame_bgr: np.ndarray, frame_rec: dict,
@@ -112,9 +136,10 @@ def draw_overlay(frame_bgr: np.ndarray, frame_rec: dict,
         cv2.putText(frame_bgr, label, (x1 + 1, max(10, y1 - 2)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.34, (255, 255, 255), 1, cv2.LINE_AA)
 
-    # Gripper trajectory (red trail) + current dot
+    # Gripper trajectory: red past trail + cyan future 20-step path + current dot
     cur_idx = frame_rec.get("frame_index", 0)
     draw_traj(frame_bgr, gripper_history, cur_idx, trail_len=24)
+    draw_future_traj(frame_bgr, gripper_history, cur_idx, horizon=20)
     cur_pt = gripper_history[cur_idx] if cur_idx < len(gripper_history) else None
     if cur_pt is not None and len(cur_pt) >= 2:
         cv2.circle(frame_bgr, (int(cur_pt[0]), int(cur_pt[1])), 4, (0, 0, 255), -1)
