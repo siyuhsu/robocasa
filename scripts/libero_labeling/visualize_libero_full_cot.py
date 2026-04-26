@@ -174,7 +174,7 @@ def make_cot_panel(payload: dict, frame_idx: int, panel_w: int) -> np.ndarray:
     block("LONG PLAN:", long_plan, (170, 0, 0), max_lines=10)
     block("SHORT PLAN:", short_plan, (0, 120, 0), max_lines=6)
     block("MOVEMENT:", movement, (130, 0, 130), max_lines=6)
-    block("POSITION LEVEL:", position, (120, 0, 120), max_lines=2)
+    block("POSITION LEVEL:", position, (120, 0, 120), max_lines=8)
     block("OBJECT:", obj_block, (130, 70, 0), max_lines=10)
 
     return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)

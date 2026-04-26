@@ -43,8 +43,29 @@ LIBERO_SUITES = ["libero_goal", "libero_object", "libero_spatial", "libero_10"]
 
 
 # Templates — match robocasa CoT prompt style for downstream training compat.
-POSITION_LEVEL_TEMPLATE = "NEXT GRIPPER: {gripper_2d_next}\n"
+# Position-level provides 3 horizons:
+#   CURRENT GRIPPER     — pixel coord at frame t (where the gripper is now)
+#   NEXT GRIPPER        — pixel coord at frame t+1 (immediate target)
+#   NEXT 20 GRIPPER PATH — pixel trajectory frames t..min(t+20, n-1) (1s look-ahead at fps=20)
+POSITION_LEVEL_TEMPLATE = (
+    "CURRENT GRIPPER: {gripper_2d_curr}\n"
+    "NEXT GRIPPER: {gripper_2d_next}\n"
+    "NEXT 20 GRIPPER PATH: {gripper_path_20}\n"
+)
 OBJECT_LEVEL_TEMPLATE = "OBJECT:\n{objects}\n"
+NEXT_HORIZON_STEPS = 20  # mirrors label_libero_episodes.py NEXT_HORIZON_STEPS
+
+
+def _format_pt(pt) -> str:
+    if pt is None or len(pt) < 2:
+        return "null"
+    return f"[{int(pt[0])}, {int(pt[1])}]"
+
+
+def _format_path(pts: list) -> str:
+    if not pts:
+        return "[]"
+    return ", ".join(_format_pt(p) for p in pts if p is not None)
 
 
 def _objects_text(frame_boxes: list, object_names: list[str]) -> str:
@@ -104,13 +125,20 @@ def backfill_episode(cot_path: Path, grounding_path: Path,
         rec["task_obj_bbox"] = frame_boxes[0] if frame_boxes else None
         rec["distractor_bboxes"] = frame_boxes[1:] if len(frame_boxes) > 1 else []
 
-        # Rendered text fields for prompt
-        # NEXT GRIPPER references the gripper_2d at frame t+1 (or t if at end)
+        # Render position-level block — 3 gripper horizons:
+        #   CURRENT GRIPPER (frame t), NEXT GRIPPER (frame t+1),
+        #   NEXT 20 GRIPPER PATH (frames t..min(t+20, n-1))
+        curr_gp = gripper_2d[t] if t < len(gripper_2d) else None
         next_t = t + 1 if t + 1 < n else t
         next_gp = gripper_2d[next_t] if next_t < len(gripper_2d) else None
-        if next_gp is not None and len(next_gp) == 2:
+        path_end = min(t + NEXT_HORIZON_STEPS, n - 1)
+        path_pts = [gripper_2d[k] for k in range(t, path_end + 1) if k < len(gripper_2d)]
+
+        if curr_gp is not None or next_gp is not None or path_pts:
             rec["assistant_position_level"] = POSITION_LEVEL_TEMPLATE.format(
-                gripper_2d_next=f"[{int(next_gp[0])}, {int(next_gp[1])}]"
+                gripper_2d_curr=_format_pt(curr_gp),
+                gripper_2d_next=_format_pt(next_gp),
+                gripper_path_20=_format_path(path_pts),
             )
         else:
             rec["assistant_position_level"] = None
