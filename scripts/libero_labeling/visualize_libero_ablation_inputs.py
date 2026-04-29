@@ -191,10 +191,10 @@ HEADER_FILL = {
     "INSTRUCTION":               (0, 0, 180),
     "LONG PLAN":                 (170, 0, 0),
     "CURRENT SUBTASK":           (0, 120, 0),
-    "3D gripper movement now":   (130, 0, 130),
-    "3D gripper movement next 20": (130, 0, 130),
-    "2D gripper movement now":   (0, 110, 130),
-    "2D gripper movement next 20": (0, 110, 130),
+    "current gripper primitive": (130, 0, 130),
+    "future gripper primitive":  (130, 0, 130),
+    "current gripper movement":  (0, 110, 130),
+    "future gripper movement":   (0, 110, 130),
     "VISUAL GROUNDING":          (200, 80, 0),
 }
 
@@ -266,13 +266,13 @@ def render_panel(payload: dict, frame_idx: int, panel_w: int,
     if flags["subtask"]:
         block("CURRENT SUBTASK", subtask or short_plan_raw, max_lines=4)
     if flags["short_3d"]:
-        block("3D gripper movement now", short3, max_lines=2)
+        block("current gripper primitive", short3, max_lines=2)
     if flags["long_3d"]:
-        block("3D gripper movement next 20", long3, max_lines=2)
+        block("future gripper primitive", long3, max_lines=2)
     if flags["short_2d"]:
-        block("2D gripper movement now", short2, max_lines=2)
+        block("current gripper movement", short2, max_lines=2)
     if flags["long_2d"]:
-        block("2D gripper movement next 20", long2, max_lines=4)
+        block("future gripper movement", long2, max_lines=4)
 
     return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
