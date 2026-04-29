@@ -109,62 +109,79 @@ def split_position_block(text: str) -> tuple[str, str]:
 
 
 # ───── per-frame visual overlay (visual_grounding axis) ─────────────────────
+#
+# The overlay below MUST match HiCoVLA_LowLevel.draw_visual_grounding exactly,
+# otherwise visual_only viz misrepresents what the model sees:
+#   * single red color for ALL bboxes, width=2, NO text labels
+#     (VLM can't read tiny labels at 224×224; per-object colors add noise
+#     without signal because object identity is already in the prompt text)
+#   * gripper trajectory = ONLY future 20-step path from current frame,
+#     blue→yellow temporal gradient (t=0 blue, t=last yellow), width=2
+#   * NO past trail (training never sees the past)
+#   * blue filled dot @ current frame, yellow filled dot @ +20-frame endpoint
+#
+# Reference: starVLA/model/framework/HiCoVLA_LowLevel.py:draw_visual_grounding
 
 
-def draw_traj(frame_bgr: np.ndarray, grippers: list, idx: int, trail_len: int = 24):
-    start = max(0, idx - trail_len)
-    pts = []
-    for j in range(start, idx + 1):
-        pt = grippers[j] if j < len(grippers) else None
-        if pt is None or len(pt) < 2:
-            continue
-        pts.append((int(pt[0]), int(pt[1])))
-    for i in range(1, len(pts)):
-        cv2.line(frame_bgr, pts[i - 1], pts[i], (0, 0, 255), 1, cv2.LINE_AA)
-
-
-def draw_future_traj(frame_bgr: np.ndarray, grippers: list, idx: int, horizon: int = 20):
-    end = min(idx + horizon, len(grippers) - 1)
-    pts = []
-    for j in range(idx, end + 1):
-        pt = grippers[j] if j < len(grippers) else None
-        if pt is None or len(pt) < 2:
-            continue
-        pts.append((int(pt[0]), int(pt[1])))
-    cyan = (255, 255, 0)
-    for i in range(1, len(pts)):
-        cv2.line(frame_bgr, pts[i - 1], pts[i], cyan, 1, cv2.LINE_AA)
-    if len(pts) >= 2:
-        cv2.circle(frame_bgr, pts[-1], 3, cyan, 1, cv2.LINE_AA)
+_BBOX_COLOR_RGB = (255, 0, 0)         # red, identical to training _BBOX_COLOR
 
 
 def draw_overlay(frame_bgr: np.ndarray, frame_rec: dict,
                  all_object_names: list[str], gripper_history: list,
-                 obj_cat: str | None):
-    bboxes_with_idx = []
+                 obj_cat: str | None,
+                 src_size: int = 256, future_horizon: int = 20):
+    """Match HiCoVLA_LowLevel.draw_visual_grounding byte-for-byte.
+
+    `frame_bgr` is OpenCV BGR ; we round-trip through PIL RGB so the PIL.draw
+    primitives behave identically to training.
+    """
+    rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    pil = Image.fromarray(rgb)
+    w, h = pil.size
+    sx, sy = w / src_size, h / src_size
+    draw = ImageDraw.Draw(pil)
+
+    # ── bboxes: single red color, width=2, no labels ──────────────────────
+    bboxes = []
     if frame_rec.get("task_obj_bbox") is not None:
-        bboxes_with_idx.append((0, frame_rec["task_obj_bbox"], obj_cat or "task_obj"))
-    for di, dbbox in enumerate(frame_rec.get("distractor_bboxes") or []):
-        name = all_object_names[di + 1] if di + 1 < len(all_object_names) else f"distr_{di}"
-        bboxes_with_idx.append((di + 1, dbbox, name))
-    for ci, bbox, label in bboxes_with_idx:
+        bboxes.append(frame_rec["task_obj_bbox"])
+    for dbbox in frame_rec.get("distractor_bboxes") or []:
+        bboxes.append(dbbox)
+    for bbox in bboxes:
         if bbox is None or len(bbox) != 4:
             continue
-        x1, y1, x2, y2 = [int(v) for v in bbox]
-        c = color_bgr(ci)
-        cv2.rectangle(frame_bgr, (x1, y1), (x2, y2), c, 2)
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.34, 1)
-        cv2.rectangle(frame_bgr, (x1, max(0, y1 - th - 4)),
-                      (min(x1 + tw + 2, frame_bgr.shape[1] - 1), y1), c, -1)
-        cv2.putText(frame_bgr, label, (x1 + 1, max(10, y1 - 2)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.34, (255, 255, 255), 1, cv2.LINE_AA)
+        x1, y1, x2, y2 = bbox
+        draw.rectangle([x1 * sx, y1 * sy, x2 * sx, y2 * sy],
+                       outline=_BBOX_COLOR_RGB, width=2)
+
+    # ── gripper trajectory: future 20-step path with blue→yellow gradient ─
     cur_idx = frame_rec.get("frame_index", 0)
-    draw_traj(frame_bgr, gripper_history, cur_idx, trail_len=24)
-    draw_future_traj(frame_bgr, gripper_history, cur_idx, horizon=20)
-    cur_pt = gripper_history[cur_idx] if cur_idx < len(gripper_history) else None
-    if cur_pt is not None and len(cur_pt) >= 2:
-        cv2.circle(frame_bgr, (int(cur_pt[0]), int(cur_pt[1])), 4, (0, 0, 255), -1)
-        cv2.circle(frame_bgr, (int(cur_pt[0]), int(cur_pt[1])), 5, (255, 255, 255), 1)
+    end = min(cur_idx + future_horizon, len(gripper_history) - 1)
+    raw_pts = []
+    for j in range(cur_idx, end + 1):
+        pt = gripper_history[j] if j < len(gripper_history) else None
+        if pt is None or len(pt) < 2:
+            continue
+        raw_pts.append(pt)
+    if len(raw_pts) >= 2:
+        scaled = [(int(p[0] * sx), int(p[1] * sy)) for p in raw_pts]
+        n_segs = max(1, len(scaled) - 1)
+        for j in range(1, len(scaled)):
+            t = (j - 1) / n_segs
+            r = int(0 * (1 - t) + 255 * t)
+            g = int(0 * (1 - t) + 255 * t)
+            b = int(255 * (1 - t) + 0 * t)
+            draw.line([scaled[j - 1], scaled[j]], fill=(r, g, b), width=2)
+        # Current = blue dot ; endpoint = yellow dot (radius 3, filled)
+        cx, cy = scaled[0]
+        draw.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=(0, 0, 255))
+        ex, ey = scaled[-1]
+        draw.ellipse([ex - 3, ey - 3, ex + 3, ey + 3], fill=(255, 255, 0))
+
+    # In-place write the BGR buffer back so the caller's `frame_bgr` is updated
+    # without changing return semantics.
+    out = cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+    np.copyto(frame_bgr, out)
 
 
 # ───── per-variant text panel ────────────────────────────────────────────────
