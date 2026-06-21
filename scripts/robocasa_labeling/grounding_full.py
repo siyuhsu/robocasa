@@ -123,12 +123,15 @@ def main():
     ap.add_argument("--mg-filter", default="300_demos")
     ap.add_argument("--num-shards", type=int, default=1); ap.add_argument("--shard-id", type=int, default=0)
     ap.add_argument("--no-bbox", action="store_true"); ap.add_argument("--tasks", nargs="*")
+    ap.add_argument("--episodes", type=int, nargs="*", help="only ground these episode indices (default: all)")
     a = ap.parse_args()
     tasks = a.tasks or sorted(d.name for d in Path(a.cot_root).iterdir() if d.is_dir())
+    eps_want = set(a.episodes) if a.episodes else None
     jobs = []
     for t in tasks:
         e2d = ep_to_demo(t, a.input_root, a.mg_filter)
         for ep, (hp, dn) in e2d.items():
+            if eps_want is not None and ep not in eps_want: continue
             cot = Path(a.cot_root) / t / "extras" / f"episode_{ep:06d}" / "cot_annotations.json"
             if cot.exists(): jobs.append((t, ep, str(cot), hp, dn))
     jobs.sort()

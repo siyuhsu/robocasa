@@ -132,14 +132,15 @@ def main():
     ap.add_argument("--cot-root", required=True); ap.add_argument("--data-root", required=True)
     ap.add_argument("--out", required=True); ap.add_argument("--layout", choices=["suite", "task"], required=True)
     ap.add_argument("--units", nargs="+", required=True); ap.add_argument("--fps", type=int, default=20)
+    ap.add_argument("--episodes", type=int, nargs="*", help="explicit episode indices (overrides default per-task selection)")
     a = ap.parse_args()
     Path(a.out).mkdir(parents=True, exist_ok=True)
     for u in a.units:
         if a.layout == "suite":
             lr = Path(a.data_root) / f"{u}_no_noops_1.0.0_lerobot"; vkey = "observation.images.image"
-            eps = one_per_task(lr / "meta")
+            eps = a.episodes if a.episodes else one_per_task(lr / "meta")
         else:
-            lr = Path(a.data_root) / u; vkey = "robot0_agentview_left_image"; eps = [0]
+            lr = Path(a.data_root) / u; vkey = "robot0_agentview_left_image"; eps = a.episodes if a.episodes else [0]
         nok = 0
         for ep in eps:
             cot = Path(a.cot_root) / u / "extras" / f"episode_{ep:06d}" / "cot_annotations.json"
