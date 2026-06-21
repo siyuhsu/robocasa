@@ -1,0 +1,61 @@
+# VLA-Arena CoT Labeling
+
+CoT annotation for VLA-Arena (suites: `vla_arena_l0`, `vla_arena_l1`; ~5768
+episodes). LIBERO-based, **per-suite** (`<DATA>/<suite>_no_noops_1.0.0_lerobot/...`),
+state-8, `video_key=observation.images.image`.
+
+See `../COT_ANNOTATION.md` for the architecture; this is the run book.
+
+## 1. Stage-1 — instruction → subtask map
+```bash
+python generate_vla_arena_instruction_subtasks.py    # → instruction→subtask map
+```
+
+## 2. Stage-2 — segmentation + per-segment labeling + LNDS
+```bash
+python label_vla_arena_episodes.py --suite vla_arena_l0 \
+  --data_root /…/vla_arena_libero_cot --cot_root /…/VLA_ARENA_COT
+```
+Core `label_one_episode` (shared) — triple-segment + per-segment VLM +
+`correct_subtask_order` (`subtask_order.py`).
+
+## 3. Grounding — gripper_2d + bbox
+```bash
+python vla_arena_grounding.py …        # extract per-frame grounding (source HDF5)
+python backfill_vla_arena_into_cot.py  # merge grounding → cots
+```
+> ⚠️ Same **action-replay static-bbox** caveat as LIBERO (~30–50 % of manipulated
+> eps). Fix = state-replay from the source HDF5 `states`. The VLA-Arena raw demos
+> (HDF5 with `data/demo_*/...`) are the RLDS builder's source — locate them before
+> re-grounding. See `../COT_ANNOTATION.md §5`.
+
+## 4. Coverage QC + multi-object fix
+```bash
+python ../robocasa_labeling/check_subtask_coverage.py --roots /…/VLA_ARENA_COT/*
+# L1 has multi-object ("pick up the lime and the banana"):
+python ../robocasa_labeling/reapply_multiobj.py --cot_root /…/VLA_ARENA_COT --suite vla_arena_l1 \
+  --lerobot_root /…/vla_arena_libero_cot
+```
+`reapply_multiobj.py` = gripper-cycle rounds × plan phases, proportional within
+round → guarantees both object phases appear. Re-check until 0 trunc_multi.
+
+## 5. Review videos
+```bash
+python ../robocasa_labeling/unified_cot_viz.py --layout suite \
+  --cot-root /…/VLA_ARENA_COT --data-root /…/vla_arena_libero_cot \
+  --out /…/qc_viz --units vla_arena_l0 vla_arena_l1
+```
+
+## Script index
+| script | role |
+|---|---|
+| `generate_vla_arena_instruction_subtasks.py` | Stage-1 map |
+| `label_vla_arena_episodes.py` | Stage-2 label (core `label_one_episode`) |
+| `subtask_order.py` | weighted-LNDS `correct_subtask_order` (shared logic) |
+| `../robocasa_labeling/reapply_multiobj.py` | re-map multi-object truncated cots (gripper rounds × phases) — shared |
+| `flag_same_category.py` | flag same-category multi-object ambiguity |
+| `vla_arena_grounding.py`, `vla_arena_bbox.py`, `extract_eef_actions.py` | grounding (⚠ action-replay) |
+| `backfill_vla_arena_into_cot.py` | merge grounding → cot |
+| `vla_arena_dump_cameras.py`, `vla_arena_reexport.py` | data utilities |
+| `visualize_vla_arena_full_cot.py`, `vla_arena_viz.py` | VLA-Arena viz (unified viz preferred) |
+| `fix_multiobj_subtasks.py`, `fix_subtask_order.py`, `merge_libero_grounding.py` | earlier/legacy fixers (superseded by `reapply_multiobj` + LNDS in label) |

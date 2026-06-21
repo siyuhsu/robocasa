@@ -1,0 +1,60 @@
+# LIBERO CoT Labeling
+
+CoT annotation for LIBERO (suites: `libero_object`, `libero_goal`, `libero_spatial`,
+`libero_10`; ~1693 episodes). LIBERO is **per-suite**
+(`<DATA>/<suite>_no_noops_1.0.0_lerobot/...`), state-8, `video_key=observation.images.image`.
+
+See `../COT_ANNOTATION.md` for the architecture; this is the run book.
+
+## 1. Stage-1 — instruction → subtask map
+```bash
+python generate_libero_instruction_subtasks.py    # → libero_instruction_subtask_mapping.json
+```
+One plan per unique instruction. Verify 0 fallback plans.
+
+## 2. Stage-2 — segmentation + per-segment labeling + LNDS
+```bash
+python label_libero_episodes.py --suite libero_goal \
+  --data_root /…/LEROBOT_LIBERO_DATA --cot_root /…/LIBERO_COT --run_labeling
+```
+`label_one_episode` = triple-segment + per-segment VLM + `correct_subtask_order`.
+Indices auto-derived from `meta/modality.json` (`get_segmentation_indices`).
+
+## 3. Grounding — gripper_2d + bbox
+```bash
+# libero_eval conda + ForceVLA libero PYTHONPATH/LIBERO_CONFIG_PATH (see script header)
+CUDA_VISIBLE_DEVICES=0 MUJOCO_GL=egl python extract_libero_grounding.py \
+  --data_root /…/LEROBOT_LIBERO_DATA --output_root /…/LIBERO_GROUNDING --suite libero_goal
+python backfill_grounding_into_cot.py    # merge grounding into cots
+```
+> ⚠️ The current `extract_libero_grounding.py` rebuilds trajectories by **action
+> replay** (`env.step(parquet actions)`) which diverges → **static object bbox**
+> (~20–50 % of manipulated eps; gripper_2d ~ok). Fix = **state-replay**: load the
+> raw `*_no_noops` HDF5 `states`, match ep→demo by frame-count + action[:6]
+> (gripper dim sign-flipped), `sim.set_state_from_flattened(states[t]); sim.forward()`
+> instead of stepping actions. Verified on `libero_spatial`. See `../COT_ANNOTATION.md §5`.
+
+## 4. Coverage QC (shared)
+```bash
+python ../robocasa_labeling/check_subtask_coverage.py --roots /…/LIBERO_COT/*
+# multi-object (e.g. libero_10 "put BOTH X and Y"):
+python ../robocasa_labeling/reapply_multiobj.py --cot_root /…/LIBERO_COT --suite libero_10 \
+  --lerobot_root /…/LEROBOT_LIBERO_DATA
+```
+
+## 5. Review videos
+```bash
+python ../robocasa_labeling/unified_cot_viz.py --layout suite \
+  --cot-root /…/LIBERO_COT --data-root /…/LEROBOT_LIBERO_DATA \
+  --out /…/qc_viz --units libero_object libero_goal libero_spatial libero_10
+```
+
+## Script index
+| script | role |
+|---|---|
+| `generate_libero_instruction_subtasks.py` | Stage-1 map |
+| `label_libero_episodes.py` | Stage-2 label (core `label_one_episode`) |
+| `utils_libero.py` | helpers (`get_segmentation_indices`, `read_video_frames`, `suite_dir`, …) |
+| `extract_libero_grounding.py` | grounding (⚠ action-replay — see note) |
+| `backfill_grounding_into_cot.py` | merge grounding → cot |
+| `visualize_libero_full_cot.py`, `visualize_libero_grounding.py`, `visualize_libero_annotations.py`, `visualize_libero_ablation_inputs.py` | LIBERO-specific viz |
