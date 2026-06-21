@@ -33,8 +33,11 @@ def main():
             continue
         vid = lr / "videos" / f"chunk-{ep // 1000:03d}" / a.video_key / f"episode_{ep:06d}.mp4"
         kf = extract_keyframes(vid, 1.0)
-        m[instr] = decompose_instruction_vlm(instr, kf, model) or ["approach", "interact", "complete"]
-        print(f"  [{instr[:50]}] -> {m[instr]}", flush=True)
+        subs = decompose_instruction_vlm(instr, kf, model) or ["approach", "interact", "complete"]
+        # canonical mapping schema (matches generate_*_instruction_subtasks output):
+        # {instruction: {"task_type", "category", "subtasks": [...]}}
+        m[instr] = {"task_type": a.suite, "category": "atomic", "subtasks": subs}
+        print(f"  [{instr[:50]}] -> {subs}", flush=True)
     Path(a.out_map).parent.mkdir(parents=True, exist_ok=True)
     json.dump(m, open(a.out_map, "w"), ensure_ascii=False, indent=2)
     print(f"wrote {len(m)} instruction(s) -> {a.out_map}", flush=True)
