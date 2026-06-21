@@ -153,3 +153,12 @@ The shared core (`label_one_episode`, `triple_segment`, `correct_subtask_order`,
   between lerobot and source HDF5).
 - **EGL rendering** hangs in detached (`setsid`) processes — run grounding
   **foreground** (per-GPU sharding) and free `mujoco.Renderer` per episode.
+
+## 6. End-to-end single-demo annotation
+
+Each benchmark dir has `annotate_demo.sh <unit> [ep]` for **one-shot** annotation
+of a single human demo (new task, small dataset): inline Stage-1 → Stage-2 →
+**state-replay grounding** → review video. Shared inline Stage-1 = `make_single_map.py`;
+LIBERO/VLA-Arena state-replay grounding = `libero_labeling/extract_libero_grounding_sr.py`
+(the fixed method — sets `states[t]`, so the moving-object bbox tracks). Grounding
+needs the source HDF5 (`states`+`model_file`); pass it via `HDF5_DIR`.
